@@ -49,6 +49,12 @@ struct Expression {
   bool background = false;
 };
 
+enum CommandReturnStatus {
+  SUCCES = 0,
+  ERROR = 1,
+  EXIT_PROGRAM = -1
+};
+
 // Parses a string to form a vector of arguments. The separator is a space char (' ').
 vector<string> split_string(const string& str, char delimiter = ' ') {
   vector<string> retval;
@@ -145,12 +151,37 @@ Expression parse_command_line(string commandLine) {
   return expression;
 }
 
+int handle_internal_cd(Command& command) {
+  return SUCCES;
+}
+
+int handle_internal_exit(Command& command) {
+  exit(EXIT_SUCCESS);
+}
+
+int check_for_internal_commands(Expression& expression) {
+  if (expression.commands.size() == 1) {
+    Command command = expression.commands[0];
+    string first_part = command.parts[0];
+
+    if (first_part == "cd") {
+      return handle_internal_cd(command);
+    }
+    if (first_part == "exit") {
+      return handle_internal_exit(command);
+    }
+  }
+}
+
 int execute_expression(Expression& expression) {
   // Check for empty expression
   if (expression.commands.size() == 0)
     return EINVAL;
 
   // Handle intern commands (like 'cd' and 'exit')
+  
+  int status = check_for_internal_commands(expression);
+
   
   // External commands, executed with fork():
   // Loop over all commandos, and connect the output and input of the forked processes
