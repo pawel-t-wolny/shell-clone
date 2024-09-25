@@ -50,9 +50,8 @@ struct Expression {
 };
 
 enum CommandReturnStatus {
-  SUCCES = 0,
-  ERROR = 1,
-  EXIT_PROGRAM = -1
+  COMMAND_SUCCESS = 0,
+  COMMAND_ERROR = 1,
 };
 
 // Parses a string to form a vector of arguments. The separator is a space char (' ').
@@ -152,14 +151,27 @@ Expression parse_command_line(string commandLine) {
 }
 
 int handle_internal_cd(Command& command) {
-  return SUCCES;
+  if (command.parts.size() != 2) {
+    return COMMAND_ERROR;
+  }
+
+  const char *path = command.parts[1].c_str();
+
+  if(chdir(path) < 0) {
+    return COMMAND_ERROR;
+  }
+
+  return COMMAND_SUCCESS;
 }
 
 int handle_internal_exit(Command& command) {
   exit(EXIT_SUCCESS);
 }
 
-int check_for_internal_commands(Expression& expression) {
+int execute_internal_commands(Expression& expression) {
+  // Check if the given expression is one of the predefined internal commands.
+  // If so, handle it appropriately.
+
   if (expression.commands.size() == 1) {
     Command command = expression.commands[0];
     string first_part = command.parts[0];
@@ -171,6 +183,8 @@ int check_for_internal_commands(Expression& expression) {
       return handle_internal_exit(command);
     }
   }
+
+  return 0;
 }
 
 int execute_expression(Expression& expression) {
@@ -178,11 +192,12 @@ int execute_expression(Expression& expression) {
   if (expression.commands.size() == 0)
     return EINVAL;
 
-  // Handle intern commands (like 'cd' and 'exit')
-  
-  int status = check_for_internal_commands(expression);
+  // Check if the expression is an internal command and if so handle it appropriately
+  int internal_command_status = execute_internal_commands(expression);
+  if (internal_command_status != 0) {
+    return internal_command_status;
+  }
 
-  
   // External commands, executed with fork():
   // Loop over all commandos, and connect the output and input of the forked processes
 
