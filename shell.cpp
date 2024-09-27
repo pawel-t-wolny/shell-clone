@@ -151,16 +151,6 @@ Expression parse_command_line(string commandLine) {
 //######### Handlers for internal commands #########
 
 int handle_internal_cd(Command& command) {
-  if (command.parts.size() > 2) {
-    return E2BIG;
-  }
-
-  const char *path = command.parts[1].c_str();
-
-  if(chdir(path) < 0) {
-    return errno;
-  }
-
   return 0;
 }
 
