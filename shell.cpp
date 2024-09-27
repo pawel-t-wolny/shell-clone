@@ -34,9 +34,12 @@
 #include <vector>
 #include <list>
 #include <optional>
-
+#include <unordered_map>
+#include <functional>
 // although it is good habit, you don't have to type 'std' before many objects by including this line
 using namespace std;
+
+#define COMMAND_NOT_FOUND -1
 
 struct Command {
   vector<string> parts = {};
@@ -47,11 +50,6 @@ struct Expression {
   string inputFromFile;
   string outputToFile;
   bool background = false;
-};
-
-enum CommandReturnStatus {
-  COMMAND_SUCCESS = 0,
-  COMMAND_ERROR = 1,
 };
 
 // Parses a string to form a vector of arguments. The separator is a space char (' ').
@@ -150,41 +148,81 @@ Expression parse_command_line(string commandLine) {
   return expression;
 }
 
+//######### Handlers for internal commands #########
+
 int handle_internal_cd(Command& command) {
-  if (command.parts.size() != 2) {
-    return COMMAND_ERROR;
+  if (command.parts.size() > 2) {
+    return E2BIG;
   }
 
   const char *path = command.parts[1].c_str();
 
   if(chdir(path) < 0) {
-    return COMMAND_ERROR;
+    return errno;
   }
 
-  return COMMAND_SUCCESS;
+  return 0;
 }
 
 int handle_internal_exit(Command& command) {
   exit(EXIT_SUCCESS);
 }
 
-int execute_internal_commands(Expression& expression) {
+/*
+A hash map of handlers that maps a command name to its appropriate handler.
+This solution allows for better scalability when adding new internal commands.
+*/ 
+const unordered_map<string, function<int(Command&)>> internalCommands = {
+  {"cd", handle_internal_cd},
+  {"exit", handle_internal_exit},
+};
+
+int handle_internal_commands(Expression& expression) {
   // Check if the given expression is one of the predefined internal commands.
   // If so, handle it appropriately.
 
   if (expression.commands.size() == 1) {
+    
     Command command = expression.commands[0];
     string first_part = command.parts[0];
 
-    if (first_part == "cd") {
-      return handle_internal_cd(command);
+    function<int(Command&)> internal_command_handler;
+
+    try {
+      // Lookup the command name to find the corresponding handler function 
+       internal_command_handler = internalCommands.at(first_part);
+    } catch (const out_of_range e) {
+      // Internal command not found, continue execution
+      return COMMAND_NOT_FOUND;
     }
-    if (first_part == "exit") {
-      return handle_internal_exit(command);
-    }
+
+    return internal_command_handler(command);
   }
 
   return 0;
+}
+
+int handle_single_external_command(Command& command) {
+  pid_t pid = fork();
+
+  if (pid == 0) {
+    // Child process
+    int status = execute_command(command);
+    // If we reached this point then an error has occured while executing the command
+    cerr << strerror(status) << "\n";
+  }
+
+  waitpid(pid, NULL, 0);
+}
+
+int handle_external_commands(Expression& expression) {
+  // Check if the given expression is a single external command.
+  // If so, fork the current process and execute the appropriate command in the child process.
+  vector<Command> commands = expression.commands;
+
+  for (int i = 0; i < expression.commands.size(); i++) {
+    handle_single_external_command(commands.at(i));
+  }
 }
 
 int execute_expression(Expression& expression) {
@@ -192,17 +230,24 @@ int execute_expression(Expression& expression) {
   if (expression.commands.size() == 0)
     return EINVAL;
 
+  int status;
+
   // Check if the expression is an internal command and if so handle it appropriately
-  int internal_command_status = execute_internal_commands(expression);
-  if (internal_command_status != 0) {
-    return internal_command_status;
+  status = handle_internal_commands(expression);
+
+  if (status != COMMAND_NOT_FOUND) {
+    return status;
   }
+
+  status = handle_external_commands(expression);
+
+
 
   // External commands, executed with fork():
   // Loop over all commandos, and connect the output and input of the forked processes
 
   // For now, we just execute the first command in the expression. Disable.
-  execute_command(expression.commands[0]);
+  // execute_command(expression.commands[0]);
 
   return 0;
 }
