@@ -4,18 +4,11 @@
         * Radboud University
         * v22.09.05
 
-	Student names:
-	- Pawel Wolny s1092613
-	- Kornel Lisinski s1098971
+        Student names:
+        - Pawel Wolny s1092613
+        - Kornel Lisinski s1098971
 */
 
-/**
- * Hint: in most IDEs (Visual Studio Code, Qt Creator, neovim) you can:
- * - Control-click on a function name to go to the definition
- * - Ctrl-space to auto complete functions and variables
- */
-
-// function/class definitions you are going to use
 #include <assert.h>
 #include <errno.h>
 #include <iostream>
@@ -158,20 +151,20 @@ Expression parse_command_line(string commandLine) {
   return expression;
 }
 
-/*######### Handlers for internal commands #########*/
+// Handlers for internal commands
 
-int handle_internal_cd(Command& command) {
-  const char* path;
+int handle_internal_cd(Command &command) {
+  const char *path;
 
   // Case where user only inputs cd - it should return to Home directory
   if (command.parts.size() == 1) {
     path = getenv("HOME");
     // The getenv() command returns NULL if not matched
-    if (path == nullptr){
+    if (path == nullptr) {
       cout << "No HOME enviroment variable set" << endl;
       return EINVAL;
     }
-  }else {
+  } else {
     // Read the path given by user
     path = command.parts.at(1).c_str();
   }
@@ -179,15 +172,10 @@ int handle_internal_cd(Command& command) {
   int result = chdir(path);
   // chdir() returns 0 if the directory change was succesful
   // else return error
-  if (result != 0){
-    if ( errno == ENOENT){
-      cout << "No such file or directory" << path << endl;
-    } else {
-      cout << strerror(errno) << path << endl;
-    }
+  if (result != 0) {
     return errno;
   }
-  
+
   return 0;
 }
 
@@ -322,7 +310,7 @@ int handle_external_commands(Expression &expression) {
 
     int pipe_1_fd[2];
     if (exp_size > 1) {
-      // We create the first pipe if we have more than one command
+      // Create the first pipe if we have more than one command
       if (pipe(pipe_1_fd) != 0) {
         cerr << "Creating pipe failed!\n";
         return EPIPE;
@@ -331,7 +319,7 @@ int handle_external_commands(Expression &expression) {
 
     int pipe_2_fd[2];
     if (exp_size > 1) {
-      // We create the second pipe if we have more than one command
+      // Create the second pipe if we have more than one command
       if (pipe(pipe_2_fd) != 0) {
         cerr << "Creating pipe failed!\n";
         return EPIPE;
@@ -395,50 +383,19 @@ int execute_expression(Expression &expression) {
   // appropriately
   status = handle_internal_commands(expression);
 
+  // If the internal command has ecexuted successfully or an error has
+  // occured - return the status
   if (status != INTERNAL_CMD_NOT_FOUND) {
     return status;
   }
 
+  // Handle the expression as an external command
   status = handle_external_commands(expression);
 
   return status;
 }
 
-// framework for executing "date | tail -c 5" using raw commands
-// two processes are created, and connected to each other
-int step1(bool showPrompt) {
-  // create communication channel shared between the two processes
-  // ...
-
-  pid_t child1 = fork();
-  if (child1 == 0) {
-    // redirect standard output (STDOUT_FILENO) to the input of the shared
-    // communication channel free non used resources (why?)
-    Command cmd = {{string("date")}};
-    execute_command(cmd);
-    // display nice warning that the executable could not be found
-    abort(); // if the executable is not found, we should abort. (why?)
-  }
-
-  pid_t child2 = fork();
-  if (child2 == 0) {
-    // redirect the output of the shared communication channel to the standard
-    // input (STDIN_FILENO). free non used resources (why?)
-    Command cmd = {{string("tail"), string("-c"), string("5")}};
-    execute_command(cmd);
-    abort(); // if the executable is not found, we should abort. (why?)
-  }
-
-  // free non used resources (why?)
-  // wait on child processes to finish (why both?)
-  waitpid(child1, nullptr, 0);
-  waitpid(child2, nullptr, 0);
-  return 0;
-}
-
 int shell(bool showPrompt) {
-  //* <- remove one '/' in front of the other '/' to switch from the normal code
-  // to step1 code
   while (cin.good()) {
     string commandLine = request_command_line(showPrompt);
     Expression expression = parse_command_line(commandLine);
@@ -447,7 +404,4 @@ int shell(bool showPrompt) {
       cerr << strerror(rc) << endl;
   }
   return 0;
-  /*/
-  return step1(showPrompt);
-  //*/
 }
