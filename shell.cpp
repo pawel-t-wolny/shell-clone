@@ -4,9 +4,9 @@
         * Radboud University
         * v22.09.05
 
-        Student names:
-        - ...
-        - ...
+	Student names:
+	- Pawel Wolny s1092613
+	- Kornel Lisinski s1098971
 */
 
 /**
@@ -160,7 +160,36 @@ Expression parse_command_line(string commandLine) {
 
 /*######### Handlers for internal commands #########*/
 
-int handle_internal_cd(Command &command) { return 0; }
+int handle_internal_cd(Command& command) {
+  const char* path;
+
+  // Case where user only inputs cd - it should return to Home directory
+  if (command.parts.size() == 1) {
+    path = getenv("HOME");
+    // The getenv() command returns NULL if not matched
+    if (path == nullptr){
+      cout << "No HOME enviroment variable set" << endl;
+      return EINVAL;
+    }
+  }else {
+    // Read the path given by user
+    path = command.parts.at(1).c_str();
+  }
+
+  int result = chdir(path);
+  // chdir() returns 0 if the directory change was succesful
+  // else return error
+  if (result != 0){
+    if ( errno == ENOENT){
+      cout << "No such file or directory" << path << endl;
+    } else {
+      cout << strerror(errno) << path << endl;
+    }
+    return errno;
+  }
+  
+  return 0;
+}
 
 int handle_internal_exit(Command &command) { exit(EXIT_SUCCESS); }
 
