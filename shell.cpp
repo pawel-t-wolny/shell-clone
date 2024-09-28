@@ -158,7 +158,7 @@ Expression parse_command_line(string commandLine) {
   return expression;
 }
 
-//######### Handlers for internal commands #########
+/*######### Handlers for internal commands #########*/
 
 int handle_internal_cd(Command &command) {
   return 0;
@@ -166,10 +166,8 @@ int handle_internal_cd(Command &command) {
 
 int handle_internal_exit(Command &command) { exit(EXIT_SUCCESS); }
 
-/*
-A hash map of handlers that maps a command name to its appropriate handler.
-This solution allows for better scalability when adding new internal commands.
-*/
+// A hash map of handlers that maps a command name to its appropriate handler.
+// This solution allows for better scalability when adding new internal commands.
 const unordered_map<string, function<int(Command &)>> internalCommands = {
     {"cd", handle_internal_cd},
     {"exit", handle_internal_exit},
