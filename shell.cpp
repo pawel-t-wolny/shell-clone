@@ -238,7 +238,6 @@ int handle_single_external_command(Command &command, int input_fd,
       close(input_fd);
     }
     if (output_fd != STDOUT_FILENO) {
-      cout << "Closing output fd " << output_fd << "\n"; 
       close(output_fd);
     }
 
@@ -258,84 +257,103 @@ int handle_external_commands(Expression &expression) {
   // If so, fork the current process and execute the appropriate command in the
   // child process.
 
-  vector<Command> commands = expression.commands;
-  int exp_size = commands.size();
-  
-  int input_fd = STDIN_FILENO;
-  int output_fd = STDOUT_FILENO;
+  pid_t pid = -1;
 
-  if (!expression.inputFromFile.empty()) {
-    input_fd = open(expression.inputFromFile.c_str(), O_RDONLY);
-
-    if (input_fd < 0) {
-      return errno;
+  if (expression.background) {
+    pid = fork();
+    if (pid < 0) {
+      cerr << "Forking has failed!\n";
+      return -1; 
     }
   }
 
-  if (!expression.outputToFile.empty()) {
-    output_fd = open("test_output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (pid == 0 || pid == -1) {
+    // Child process (if background is true)
+    vector<Command> commands = expression.commands;
+    int exp_size = commands.size();
+    
+    int input_fd = STDIN_FILENO;
+    int output_fd = STDOUT_FILENO;
 
-    cout << output_fd << "\n";
+    if (!expression.inputFromFile.empty()) {
+      input_fd = open(expression.inputFromFile.c_str(), O_RDONLY);
 
-    if (output_fd < 0) {
-      return errno;
+      if (input_fd < 0) {
+        return errno;
+      }
     }
-  }
 
-  int pipe_1_fd[2];
-  if (exp_size > 1) {
-    // We create the first pipe if we have more than one command
-    if (pipe(pipe_1_fd) != 0) {
-      cerr << "Creating pipe failed!\n";
-      return EPIPE;
+    if (!expression.outputToFile.empty()) {
+      output_fd = open(expression.outputToFile.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+      if (output_fd < 0) {
+        return errno;
+      }
     }
-  }
 
-  int pipe_2_fd[2];
-  if (exp_size > 1) {
-    // We create the second pipe if we have more than one command
-    if (pipe(pipe_2_fd) != 0) {
-      cerr << "Creating pipe failed!\n";
-      return EPIPE;
+    int pipe_1_fd[2];
+    if (exp_size > 1) {
+      // We create the first pipe if we have more than one command
+      if (pipe(pipe_1_fd) != 0) {
+        cerr << "Creating pipe failed!\n";
+        return EPIPE;
+      }
     }
-  }
 
-  for (int i = 0; i < exp_size; i++) {
-    /*
-    We handle commands one by one. The first command takes input from either the
-    stdin or the designated file descriptor and writes to the write end of the
-    first pipe. The intermediate commands read from the read end of the first
-    pipe and write to the write end of the second one. The first pipe is then
-    closed and it's file descriptors are overwritten with the newly created
-    second pipe. This cycle continues until the last command, which reads from
-    the read end of the first pipe and writes to stdout or the designated file
-    descriptor.
-    */
+    int pipe_2_fd[2];
+    if (exp_size > 1) {
+      // We create the second pipe if we have more than one command
+      if (pipe(pipe_2_fd) != 0) {
+        cerr << "Creating pipe failed!\n";
+        return EPIPE;
+      }
+    }
 
-    handle_single_external_command(
-        commands.at(i), i == 0 ? input_fd : pipe_1_fd[0],
-        i == exp_size - 1 ? output_fd : pipe_1_fd[1]);
+    for (int i = 0; i < exp_size; i++) {
+      /*
+      We handle commands one by one. The first command takes input from either the
+      stdin or the designated file descriptor and writes to the write end of the
+      first pipe. The intermediate commands read from the read end of the first
+      pipe and write to the write end of the second one. The first pipe is then
+      closed and it's file descriptors are overwritten with the newly created
+      second pipe. This cycle continues until the last command, which reads from
+      the read end of the first pipe and writes to stdout or the designated file
+      descriptor.
+      */
 
-    if (i < exp_size - 1) {
-      // Creating a fresh pipe
-      if (commands.size() > 1) {
-        if (i > 0 && i < exp_size - 1) {
-          pipe_1_fd[0] = pipe_2_fd[0];
-          if (pipe(pipe_2_fd) != 0) {
-            cerr << "Creating pipe failed!\n";
-            return EPIPE;
+      handle_single_external_command(
+          commands.at(i), i == 0 ? input_fd : pipe_1_fd[0],
+          i == exp_size - 1 ? output_fd : pipe_1_fd[1]);
+
+      if (i < exp_size - 1) {
+        // Creating a fresh pipe
+        if (commands.size() > 1) {
+          if (i > 0 && i < exp_size - 1) {
+            pipe_1_fd[0] = pipe_2_fd[0];
+            if (pipe(pipe_2_fd) != 0) {
+              cerr << "Creating pipe failed!\n";
+              return EPIPE;
+            }
           }
         }
+
+        pipe_1_fd[1] = pipe_2_fd[1]; // Replace the closed fd with the write fd of
+                                    // the fresh pipe
       }
-
-      pipe_1_fd[1] = pipe_2_fd[1]; // Replace the closed fd with the write fd of
-                                   // the fresh pipe
     }
-  }
 
-  // Both ends of pipe_1 will be closed at this point and no new pipe was
-  // created on the last iteration.
-  return 0;
+    // Both ends of pipe_1 will be closed at this point and no new pipe was
+    // created on the last iteration.
+    if (pid == 0) {
+      exit(EXIT_SUCCESS);
+    }
+    
+    return 0;
+  }
+  else {
+    // Parent process (if background is true)
+    return 0;
+  }
 }
 
 int execute_expression(Expression &expression) {
