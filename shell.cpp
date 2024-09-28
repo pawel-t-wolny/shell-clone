@@ -160,14 +160,13 @@ Expression parse_command_line(string commandLine) {
 
 /*######### Handlers for internal commands #########*/
 
-int handle_internal_cd(Command &command) {
-  return 0;
-}
+int handle_internal_cd(Command &command) { return 0; }
 
 int handle_internal_exit(Command &command) { exit(EXIT_SUCCESS); }
 
 // A hash map of handlers that maps a command name to its appropriate handler.
-// This solution allows for better scalability when adding new internal commands.
+// This solution allows for better scalability when adding new internal
+// commands.
 const unordered_map<string, function<int(Command &)>> internalCommands = {
     {"cd", handle_internal_cd},
     {"exit", handle_internal_exit},
@@ -263,7 +262,7 @@ int handle_external_commands(Expression &expression) {
     pid = fork();
     if (pid < 0) {
       cerr << "Forking has failed!\n";
-      return -1; 
+      return -1;
     }
   }
 
@@ -271,7 +270,7 @@ int handle_external_commands(Expression &expression) {
     // Child process (if background is true)
     vector<Command> commands = expression.commands;
     int exp_size = commands.size();
-    
+
     int input_fd = STDIN_FILENO;
     int output_fd = STDOUT_FILENO;
 
@@ -284,7 +283,8 @@ int handle_external_commands(Expression &expression) {
     }
 
     if (!expression.outputToFile.empty()) {
-      output_fd = open(expression.outputToFile.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+      output_fd = open(expression.outputToFile.c_str(),
+                       O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
       if (output_fd < 0) {
         return errno;
@@ -311,14 +311,14 @@ int handle_external_commands(Expression &expression) {
 
     for (int i = 0; i < exp_size; i++) {
       /*
-      We handle commands one by one. The first command takes input from either the
-      stdin or the designated file descriptor and writes to the write end of the
-      first pipe. The intermediate commands read from the read end of the first
-      pipe and write to the write end of the second one. The first pipe is then
-      closed and it's file descriptors are overwritten with the newly created
-      second pipe. This cycle continues until the last command, which reads from
-      the read end of the first pipe and writes to stdout or the designated file
-      descriptor.
+      We handle commands one by one. The first command takes input from either
+      the stdin or the designated file descriptor and writes to the write end of
+      the first pipe. The intermediate commands read from the read end of the
+      first pipe and write to the write end of the second one. The first pipe is
+      then closed and it's file descriptors are overwritten with the newly
+      created second pipe. This cycle continues until the last command, which
+      reads from the read end of the first pipe and writes to stdout or the
+      designated file descriptor.
       */
 
       handle_single_external_command(
@@ -337,8 +337,8 @@ int handle_external_commands(Expression &expression) {
           }
         }
 
-        pipe_1_fd[1] = pipe_2_fd[1]; // Replace the closed fd with the write fd of
-                                    // the fresh pipe
+        pipe_1_fd[1] = pipe_2_fd[1]; // Replace the closed fd with the write fd
+                                     // of the fresh pipe
       }
     }
 
@@ -347,10 +347,9 @@ int handle_external_commands(Expression &expression) {
     if (pid == 0) {
       exit(EXIT_SUCCESS);
     }
-    
+
     return 0;
-  }
-  else {
+  } else {
     // Parent process (if background is true)
     return 0;
   }
