@@ -40,7 +40,7 @@
 // by including this line
 using namespace std;
 
-#define COMMAND_NOT_FOUND -1
+#define INTERNAL_CMD_NOT_FOUND -1
 
 struct Command {
   vector<string> parts = {};
@@ -189,13 +189,13 @@ int handle_internal_commands(Expression &expression) {
       internal_command_handler = internalCommands.at(first_part);
     } catch (const out_of_range &e) {
       // Internal command not found, continue execution
-      return COMMAND_NOT_FOUND;
+      return INTERNAL_CMD_NOT_FOUND;
     }
 
     return internal_command_handler(command);
   }
 
-  return COMMAND_NOT_FOUND;
+  return INTERNAL_CMD_NOT_FOUND;
 }
 
 int handle_single_external_command(Command &command, int input_fd,
@@ -238,6 +238,7 @@ int handle_single_external_command(Command &command, int input_fd,
       close(input_fd);
     }
     if (output_fd != STDOUT_FILENO) {
+      cout << "Closing output fd " << output_fd << "\n"; 
       close(output_fd);
     }
 
@@ -259,6 +260,27 @@ int handle_external_commands(Expression &expression) {
 
   vector<Command> commands = expression.commands;
   int exp_size = commands.size();
+  
+  int input_fd = STDIN_FILENO;
+  int output_fd = STDOUT_FILENO;
+
+  if (!expression.inputFromFile.empty()) {
+    input_fd = open(expression.inputFromFile.c_str(), O_RDONLY);
+
+    if (input_fd < 0) {
+      return errno;
+    }
+  }
+
+  if (!expression.outputToFile.empty()) {
+    output_fd = open("test_output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+    cout << output_fd << "\n";
+
+    if (output_fd < 0) {
+      return errno;
+    }
+  }
 
   int pipe_1_fd[2];
   if (exp_size > 1) {
@@ -291,8 +313,8 @@ int handle_external_commands(Expression &expression) {
     */
 
     handle_single_external_command(
-        commands.at(i), i == 0 ? STDIN_FILENO : pipe_1_fd[0],
-        i == exp_size - 1 ? STDOUT_FILENO : pipe_1_fd[1]);
+        commands.at(i), i == 0 ? input_fd : pipe_1_fd[0],
+        i == exp_size - 1 ? output_fd : pipe_1_fd[1]);
 
     if (i < exp_size - 1) {
       // Creating a fresh pipe
@@ -306,7 +328,7 @@ int handle_external_commands(Expression &expression) {
         }
       }
 
-      pipe_1_fd[1] = pipe_2_fd[1]; // Replade the closed fd with the write fd of
+      pipe_1_fd[1] = pipe_2_fd[1]; // Replace the closed fd with the write fd of
                                    // the fresh pipe
     }
   }
@@ -327,13 +349,13 @@ int execute_expression(Expression &expression) {
   // appropriately
   status = handle_internal_commands(expression);
 
-  if (status != COMMAND_NOT_FOUND) {
+  if (status != INTERNAL_CMD_NOT_FOUND) {
     return status;
   }
 
   status = handle_external_commands(expression);
 
-  return 0;
+  return status;
 }
 
 // framework for executing "date | tail -c 5" using raw commands
